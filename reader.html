@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>高清漫画阅读</title>
+    <style>
+        :root { --ui-speed: 0.3s; --primary: #007aff; }
+        body { background: #000; margin: 0; padding: 0; color: #eee; font-family: -apple-system, sans-serif; overflow-x: hidden; }
+
+        .header {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(15px);
+            padding: 10px 0; z-index: 1001;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: all var(--ui-speed) ease;
+            border-bottom: 1px solid #222;
+        }
+        
+        .bottom-controls {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(15px);
+            border-top: 1px solid #222;
+            padding: 8px 0 15px 0; z-index: 1001;
+            display: flex; flex-direction: column; align-items: center;
+            transition: all var(--ui-speed) ease;
+        }
+
+        .ui-hidden .header { transform: translateY(-100%); opacity: 0; }
+        .ui-hidden .bottom-controls { transform: translateY(100%); opacity: 0; }
+
+        .btn-back { margin-left: 15px; color: #fff; text-decoration: none; font-size: 14px; background: #333; padding: 6px 12px; border-radius: 15px; }
+        .manga-title { font-size: 14px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; text-align: center;}
+        
+        .chapter-select { margin-right: 15px; background: #333; color: white; border: none; padding: 6px; border-radius: 8px; font-size: 12px; max-width: 30%;}
+
+        #container { 
+            width: 100%;
+            max-width: 800px;
+            margin: 60px auto; 
+            display: block; 
+        }
+        img.manga-page { 
+            width: 100%; 
+            height: auto !important; 
+            display: block; 
+            margin: 0;
+            padding: 0;
+            background: #000;
+        }
+
+        .thumb-wrapper {
+            width: 100%; overflow-x: auto; white-space: nowrap;
+            padding: 5px 10px; scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch; 
+        }
+        .thumb-item {
+            display: inline-block; width: 50px; margin-right: 8px;
+            text-align: center; cursor: pointer;
+        }
+        .thumb-item img {
+            width: 100%; height: 70px; 
+            object-fit: cover; border-radius: 4px; border: 2px solid transparent;
+        }
+        .thumb-item.active img { border-color: var(--primary); }
+        .thumb-item span { font-size: 10px; color: #666; display: block; }
+
+        .slider-container { width: 85%; display: flex; align-items: center; margin-top: 10px; gap: 10px; }
+        input[type=range] { flex-grow: 1; accent-color: var(--primary); height: 4px; }
+        .current-num { margin-top: 5px; font-size: 12px; color: var(--primary); font-weight: bold; }
+
+        .status-msg { padding: 100px 20px; text-align: center; color: #444; }
+        
+        /* Bottom Chapter Nav */
+        .chapter-nav {
+            margin: 20px auto 100px auto;
+            text-align: center;
+            display: flex; justify-content: center; gap: 20px;
+        }
+        .btn-nav {
+            background: #222; color: white; padding: 10px 20px; border-radius: 20px; text-decoration: none; font-size: 14px;
+        }
+        .btn-nav.disabled { opacity: 0.3; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header" id="ui-header">
+        <a href="index.html" class="btn-back">← 返回</a>
+        <div class="manga-title" id="display-title">载入中...</div>
+        <select class="chapter-select" id="chapter-select"></select>
+    </div>
+
+    <div id="container">
+        <div class="status-msg">正在努力加载图片...</div>
+    </div>
+    
+    <div class="chapter-nav" id="bottom-nav" style="display:none;">
+        <a href="#" id="btn-prev" class="btn-nav">上一话</a>
+        <a href="#" id="btn-next" class="btn-nav">下一话</a>
+    </div>
+
+    <div class="bottom-controls" id="ui-footer" style="display:none;">
+        <div class="thumb-wrapper" id="thumb-list"></div>
+        <div class="slider-container">
+            <span style="font-size:10px;color:#444">1</span>
+            <input type="range" id="page-slider" min="1" value="1">
+            <span id="total-node" style="font-size:10px;color:#444">0</span>
+        </div>
+        <div class="current-num" id="float-num">第 1 页</div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const seriesName = params.get('series');
+        let currentChapterIndex = parseInt(params.get('ch')) || 0;
+        
+        const container = document.getElementById('container');
+        const thumbList = document.getElementById('thumb-list');
+        const slider = document.getElementById('page-slider');
+        const totalNode = document.getElementById('total-node');
+        const floatNum = document.getElementById('float-num');
+        const titleEl = document.getElementById('display-title');
+        const selectEl = document.getElementById('chapter-select');
+        const footer = document.getElementById('ui-footer');
+        const bottomNav = document.getElementById('bottom-nav');
+        
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+
+        let isAutoScrolling = false;
+        let seriesData = null;
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.header') && !e.target.closest('.bottom-controls') && !e.target.closest('.chapter-nav')) {
+                document.body.classList.toggle('ui-hidden');
+            }
+        });
+        
+        selectEl.addEventListener('change', function(e) {
+            window.location.href = `?series=${encodeURIComponent(seriesName)}&ch=${e.target.value}`;
+        });
+
+        if (!seriesName) {
+            container.innerHTML = `<div class="status-msg">参数缺失</div>`;
+        } else {
+            fetch('data.json').then(res => res.json()).then(data => {
+                seriesData = data.find(item => item.title === seriesName);
+                if (!seriesData) {
+                    container.innerHTML = `<div class="status-msg">未找到该漫画</div>`;
+                    return;
+                }
+                
+                titleEl.innerText = seriesData.title;
+                
+                // Populate dropdown
+                selectEl.innerHTML = '';
+                seriesData.chapters.forEach((chap, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.innerText = chap.title;
+                    if (idx === currentChapterIndex) opt.selected = true;
+                    selectEl.appendChild(opt);
+                });
+
+                loadChapter(currentChapterIndex);
+            });
+        }
+        
+        function loadChapter(idx) {
+            if (!seriesData || !seriesData.chapters[idx]) return;
+            
+            const chapter = seriesData.chapters[idx];
+            container.innerHTML = '';
+            thumbList.innerHTML = '';
+            
+            const total = chapter.images.length;
+            totalNode.innerText = total;
+            slider.max = total;
+            slider.value = 1;
+            floatNum.innerText = `第 1 页`;
+            footer.style.display = 'flex';
+            bottomNav.style.display = 'flex';
+            
+            btnPrev.classList.toggle('disabled', idx === 0);
+            btnPrev.onclick = (e) => { e.preventDefault(); if(idx > 0) window.location.href = `?series=${encodeURIComponent(seriesName)}&ch=${idx-1}`; };
+            
+            btnNext.classList.toggle('disabled', idx === seriesData.chapters.length - 1);
+            btnNext.onclick = (e) => { e.preventDefault(); if(idx < seriesData.chapters.length - 1) window.location.href = `?series=${encodeURIComponent(seriesName)}&ch=${idx+1}`; };
+
+            chapter.images.forEach((path, i) => {
+                const p = i + 1;
+                
+                const img = document.createElement('img');
+                img.src = encodeURI(path);
+                img.className = 'manga-page';
+                img.id = 'p' + p;
+                img.loading = 'lazy';
+                container.appendChild(img);
+
+                const thumb = document.createElement('div');
+                thumb.className = 'thumb-item';
+                thumb.id = 't' + p;
+                thumb.innerHTML = `<img src="${encodeURI(path)}" loading="lazy"><span>${p}</span>`;
+                thumb.onclick = (e) => { e.stopPropagation(); jump(p); };
+                thumbList.appendChild(thumb);
+            });
+
+            window.scrollTo(0, 0);
+            updateActive();
+        }
+
+        window.addEventListener('scroll', () => { if(!isAutoScrolling) updateActive(); });
+        slider.oninput = function() { floatNum.innerText = `第 ${this.value} 页`; };
+        slider.onchange = function() { jump(parseInt(this.value)); };
+
+        function jump(page) {
+            const target = document.getElementById('p' + page);
+            if (target) {
+                isAutoScrolling = true;
+                window.scrollTo({ top: target.offsetTop - 60, behavior: 'smooth' });
+                setTimeout(() => { isAutoScrolling = false; updateActive(); }, 800);
+            }
+        }
+
+        function updateActive() {
+            const pages = document.querySelectorAll('.manga-page');
+            let current = 1;
+            const screenMid = window.scrollY + 200;
+
+            pages.forEach((img, i) => {
+                if (img.offsetTop <= screenMid) current = i + 1;
+            });
+
+            slider.value = current;
+            floatNum.innerText = `第 ${current} 页`;
+
+            document.querySelectorAll('.thumb-item').forEach(t => t.classList.remove('active'));
+            const activeThumb = document.getElementById('t' + current);
+            if (activeThumb) {
+                activeThumb.classList.add('active');
+                thumbList.scrollTo({
+                    left: activeThumb.offsetLeft - (thumbList.offsetWidth / 2) + 25,
+                    behavior: 'auto'
+                });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的个人漫画柜</title>
+    <style>
+        :root { --primary: #007aff; --bg: #f5f5f7; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #1d1d1f; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; font-size: 32px; margin: 40px 0; }
+        
+        .tag-section { margin-bottom: 50px; }
+        .tag-title { 
+            font-size: 24px; 
+            border-left: 5px solid var(--primary); 
+            padding-left: 15px; 
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .manga-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+            gap: 25px; 
+        }
+
+        .manga-card { 
+            background: #fff; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            text-decoration: none; 
+            color: inherit;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .manga-card:hover { transform: translateY(-10px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
+
+        .cover-box { 
+            width: 100%; 
+            aspect-ratio: 3 / 4; 
+            overflow: hidden;
+            background: #e0e0e0;
+        }
+        .cover-box img { width: 100%; height: 100%; object-fit: cover; }
+
+        .info { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .manga-title { 
+            font-size: 14px; 
+            font-weight: 500; 
+            text-align: center;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        
+        .tag-pill {
+            background: var(--primary);
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            align-self: center;
+        }
+        
+        .chapter-count {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 600px) {
+            .manga-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📑 我的漫画柜</h1>
+        
+        <div id="content">加载中...</div>
+    </div>
+
+    <script>
+        fetch('data.json')
+            .then(res => res.json())
+            .then(data => {
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML = '';
+
+                // Group by tag
+                const groups = {};
+                data.forEach(item => {
+                    if (!groups[item.tag]) groups[item.tag] = [];
+                    groups[item.tag].push(item);
+                });
+
+                for (let tagName in groups) {
+                    const section = document.createElement('div');
+                    section.className = 'tag-section';
+                    
+                    section.innerHTML = `
+                        <div class="tag-title">${tagName}</div>
+                        <div class="manga-grid" id="grid-${encodeURIComponent(tagName)}"></div>
+                    `;
+                    contentDiv.appendChild(section);
+
+                    const grid = document.getElementById(`grid-${encodeURIComponent(tagName)}`);
+                    groups[tagName].forEach(series => {
+                        const card = document.createElement('a');
+                        card.className = 'manga-card';
+                        card.href = `reader.html?series=${encodeURIComponent(series.title)}`;
+                        
+                        card.innerHTML = `
+                            <div class="chapter-count">${series.chapters.length} 话</div>
+                            <div class="cover-box">
+                                <img src="${encodeURI(series.cover)}" loading="lazy">
+                            </div>
+                            <div class="info">
+                                <div class="manga-title">${series.title}</div>
+                                <div class="tag-pill">${series.tag}</div>
+                            </div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                }
+            });
+    </script>
+</body>
+</html>

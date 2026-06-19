@@ -1,0 +1,8 @@
+
+git add .
+
+git commit -m "Add new manga series and chapters"
+
+git remote -v
+
+git push origin main
