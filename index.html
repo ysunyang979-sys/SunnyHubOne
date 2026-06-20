@@ -1,139 +1,407 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的个人漫画柜</title>
     <style>
-        :root { --primary: #007aff; --bg: #f5f5f7; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #1d1d1f; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        h1 { text-align: center; font-size: 32px; margin: 40px 0; }
+        /* 暗黑主题 (默认) */
+        :root { 
+            --primary: #0a84ff; 
+            --bg: #0d0d0f; 
+            --surface: rgba(255, 255, 255, 0.05);
+            --surface-hover: rgba(255, 255, 255, 0.1);
+            --surface-card: #1a1a1c;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --header-bg: rgba(13, 13, 15, 0.8);
+            --header-border: rgba(255, 255, 255, 0.05);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --title-gradient: linear-gradient(90deg, #fff, #a5a5a5);
+            --overlay-bg: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0) 100%);
+            --chapter-num-bg: rgba(0, 0, 0, 0.7);
+            --transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* 浅色主题 */
+        [data-theme="light"] {
+            --primary: #007aff;
+            --bg: #f5f5f7;
+            --surface: rgba(0, 0, 0, 0.03);
+            --surface-hover: rgba(0, 0, 0, 0.06);
+            --surface-card: #ffffff;
+            --text-primary: #1d1d1f;
+            --text-secondary: rgba(0, 0, 0, 0.5);
+            --header-bg: rgba(245, 245, 247, 0.85);
+            --header-border: rgba(0, 0, 0, 0.05);
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --title-gradient: linear-gradient(90deg, #1d1d1f, #555);
+            --overlay-bg: linear-gradient(to top, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 60%, rgba(255,255,255,0) 100%);
+            --chapter-num-bg: rgba(255, 255, 255, 0.8);
+        }
         
-        .tag-section { margin-bottom: 50px; }
-        .tag-title { 
-            font-size: 24px; 
-            border-left: 5px solid var(--primary); 
-            padding-left: 15px; 
-            margin-bottom: 20px;
-            font-weight: bold;
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 0; 
+            color: var(--text-primary); 
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            transition: background 0.4s ease, color 0.4s ease;
         }
 
-        .manga-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
-            gap: 25px; 
+        .header-container {
+            background: var(--header-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--header-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.4s ease, border-color 0.4s ease;
         }
 
-        .manga-card { 
-            background: #fff; 
-            border-radius: 12px; 
-            overflow: hidden; 
-            text-decoration: none; 
-            color: inherit;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
+        h1 { 
+            margin: 0; 
+            font-size: 28px; 
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: var(--title-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            background: var(--surface-card);
+            border: 1px solid var(--header-border);
+            color: var(--text-primary);
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px var(--shadow-color);
+            transition: var(--transition);
+        }
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .container { 
+            max-width: 1600px; 
+            margin: 0 auto; 
+            padding: 40px 20px;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 100px;
+            color: var(--text-secondary);
+            font-size: 18px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        /* Series Row Layout */
+        .series-row {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 60px;
+            align-items: stretch;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.8s forwards;
+        }
+
+        @keyframes fadeInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Left: Series Main Info Card */
+        .series-info-card {
+            flex: 0 0 300px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            background: var(--surface-card);
+            box-shadow: 0 10px 30px var(--shadow-color);
             display: flex;
             flex-direction: column;
+            justify-content: flex-end;
+            min-height: 400px;
+            border: 1px solid var(--header-border);
+            transition: box-shadow 0.4s ease, border-color 0.4s ease, background 0.4s ease;
+        }
+
+        .series-info-card img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: var(--transition);
+        }
+
+        .series-row:hover .series-info-card img {
+            transform: scale(1.05);
+        }
+
+        .series-info-overlay {
+            position: relative;
+            z-index: 2;
+            padding: 30px 20px;
+            background: var(--overlay-bg);
+            width: 100%;
+            transition: background 0.4s ease;
+        }
+
+        .series-tag {
+            background: var(--primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 10px rgba(10, 132, 255, 0.3);
+        }
+
+        .series-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            line-height: 1.3;
+            text-shadow: 0 2px 4px var(--shadow-color);
+            color: var(--text-primary);
+        }
+
+        .series-meta {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Right: Chapters Horizontal Scroll */
+        .chapters-scroll-wrapper {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .chapters-scroll-container {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            padding: 20px 0;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+            /* Hide scrollbar */
+            scrollbar-width: none; 
+            -ms-overflow-style: none;
+        }
+        .chapters-scroll-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Chapter Card */
+        .chapter-card {
+            flex: 0 0 200px;
+            text-decoration: none;
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: var(--transition);
+            border-radius: 12px;
+            padding: 10px;
+            background: transparent;
+        }
+
+        .chapter-card:hover {
+            background: var(--surface);
+            transform: translateY(-5px);
+        }
+
+        .chapter-cover {
+            width: 100%;
+            aspect-ratio: 3/4;
+            border-radius: 10px;
+            overflow: hidden;
+            background: var(--surface-card);
+            box-shadow: 0 8px 20px var(--shadow-color);
             position: relative;
         }
-        .manga-card:hover { transform: translateY(-10px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
 
-        .cover-box { 
-            width: 100%; 
-            aspect-ratio: 3 / 4; 
-            overflow: hidden;
-            background: #e0e0e0;
+        .chapter-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: var(--transition);
         }
-        .cover-box img { width: 100%; height: 100%; object-fit: cover; }
 
-        .info { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .manga-title { 
-            font-size: 14px; 
-            font-weight: 500; 
-            text-align: center;
+        .chapter-card:hover .chapter-cover img {
+            transform: scale(1.08);
+        }
+
+        .chapter-card:hover .chapter-cover::after {
+            content: '';
+            position: absolute;
+            top:0; left:0; width:100%; height:100%;
+            background: var(--surface);
+            pointer-events: none;
+        }
+
+        .chapter-title {
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.4;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            margin-bottom: 8px;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+
+        .chapter-card:hover .chapter-title {
+            color: var(--text-primary);
         }
         
-        .tag-pill {
-            background: var(--primary);
-            color: white;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 12px;
-            align-self: center;
-        }
-        
-        .chapter-count {
+        .chapter-number {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            font-size: 12px;
+            background: var(--chapter-num-bg);
+            backdrop-filter: blur(4px);
             padding: 4px 8px;
-            border-radius: 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--text-primary);
+            border: 1px solid var(--header-border);
+            transition: background 0.4s ease, color 0.4s ease;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .series-row { flex-direction: column; gap: 15px; }
+            .series-info-card { flex: none; width: 100%; min-height: 250px; }
+            .chapters-scroll-container { padding: 10px 0; }
         }
 
         @media (max-width: 600px) {
-            .manga-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+            .header-container { padding: 15px 20px; }
+            h1 { font-size: 24px; }
+            .chapter-card { flex: 0 0 140px; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="header-container">
         <h1>📑 我的漫画柜</h1>
-        
-        <div id="content">加载中...</div>
+        <button class="theme-toggle" id="theme-btn" title="切换明暗主题">☀️</button>
+    </div>
+    
+    <div class="container">
+        <div id="content"><div class="loading">正在加载您的精美画廊...</div></div>
     </div>
 
     <script>
+        // 主题切换逻辑
+        const themeBtn = document.getElementById('theme-btn');
+        const htmlEl = document.documentElement;
+        
+        const savedTheme = localStorage.getItem('manga-theme') || 'dark';
+        htmlEl.setAttribute('data-theme', savedTheme);
+        updateBtnIcon(savedTheme);
+
+        themeBtn.addEventListener('click', () => {
+            const current = htmlEl.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            htmlEl.setAttribute('data-theme', next);
+            localStorage.setItem('manga-theme', next);
+            updateBtnIcon(next);
+        });
+
+        function updateBtnIcon(theme) {
+            themeBtn.innerHTML = theme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // 数据加载逻辑
         fetch('data.json')
             .then(res => res.json())
             .then(data => {
                 const contentDiv = document.getElementById('content');
                 contentDiv.innerHTML = '';
 
-                // Group by tag
-                const groups = {};
-                data.forEach(item => {
-                    if (!groups[item.tag]) groups[item.tag] = [];
-                    groups[item.tag].push(item);
-                });
-
-                for (let tagName in groups) {
-                    const section = document.createElement('div');
-                    section.className = 'tag-section';
-                    
-                    section.innerHTML = `
-                        <div class="tag-title">${tagName}</div>
-                        <div class="manga-grid" id="grid-${encodeURIComponent(tagName)}"></div>
-                    `;
-                    contentDiv.appendChild(section);
-
-                    const grid = document.getElementById(`grid-${encodeURIComponent(tagName)}`);
-                    groups[tagName].forEach(series => {
-                        const card = document.createElement('a');
-                        card.className = 'manga-card';
-                        card.href = `reader.html?series=${encodeURIComponent(series.title)}`;
+                data.forEach((series, index) => {
+                    setTimeout(() => {
+                        const row = document.createElement('div');
+                        row.className = 'series-row';
                         
-                        card.innerHTML = `
-                            <div class="chapter-count">${series.chapters.length} 话</div>
-                            <div class="cover-box">
-                                <img src="${encodeURI(series.cover)}" loading="lazy">
+                        const seriesCover = series.cover || (series.chapters.length > 0 && series.chapters[0].images.length > 0 ? series.chapters[0].images[0] : '');
+                        
+                        let chaptersHTML = '';
+                        series.chapters.forEach((ch, idx) => {
+                            const chCover = (ch.images && ch.images.length > 0) ? ch.images[0] : seriesCover;
+                            chaptersHTML += `
+                                <a class="chapter-card" href="reader.html?series=${encodeURIComponent(series.title)}&ch=${idx}">
+                                    <div class="chapter-cover">
+                                        <div class="chapter-number">#${idx + 1}</div>
+                                        <img src="${encodeURI(chCover)}" loading="lazy" alt="${ch.title}">
+                                    </div>
+                                    <div class="chapter-title">${ch.title}</div>
+                                </a>
+                            `;
+                        });
+
+                        row.innerHTML = `
+                            <div class="series-info-card">
+                                <img src="${encodeURI(seriesCover)}" loading="lazy" alt="${series.title}">
+                                <div class="series-info-overlay">
+                                    ${series.tag ? `<div class="series-tag">${series.tag}</div>` : ''}
+                                    <h2 class="series-title">${series.title}</h2>
+                                    <div class="series-meta">${series.chapters.length} 部作品 收录</div>
+                                </div>
                             </div>
-                            <div class="info">
-                                <div class="manga-title">${series.title}</div>
-                                <div class="tag-pill">${series.tag}</div>
+                            <div class="chapters-scroll-wrapper">
+                                <div class="chapters-scroll-container">
+                                    ${chaptersHTML}
+                                </div>
                             </div>
                         `;
-                        grid.appendChild(card);
-                    });
-                }
+                        
+                        contentDiv.appendChild(row);
+                    }, index * 100); 
+                });
+            })
+            .catch(err => {
+                document.getElementById('content').innerHTML = '<div class="loading" style="color: #ff453a;">加载失败，请检查数据文件。</div>';
+                console.error('Error loading data:', err);
             });
     </script>
 </body>
